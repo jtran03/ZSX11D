@@ -62,7 +62,7 @@ void ZSX11D::setRPM(float rpm) {
     myPID.Reset();
     _direction = STOP;  
   } else {
-    Setpoint = constrain(Setpoint, MIN_RPM, MAX_RPM); 
+    Setpoint = constrain(abs(rpm), MIN_RPM, MAX_RPM); 
   }
 
   if (rpm > 0){
@@ -83,7 +83,7 @@ int ZSX11D::getCurrentDirection() {
 }
 
 float ZSX11D::getRPMSetpoint() {
-  return Setpoint; 
+  return Setpoint * _direction; 
 }
 
 float ZSX11D::getRPM() {
