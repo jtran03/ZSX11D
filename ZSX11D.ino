@@ -7,6 +7,7 @@
 const int chipSelect = 5; // Change this to your SD card CS pin
 const int ledPin = 2; // Built-in LED pin for ESP32
 const char* logFilename = "/motor_log.txt"; // New log file name
+unsigned long lastLogTime = 0;
 
 // Pin Definition
 const unsigned int pinPWM = 25; 
@@ -17,18 +18,17 @@ const unsigned int pwmChannel = 0;
 
 ZSX11D motor(pinPWM, pinBrake, pinDirection, pinHallSensor, pwmChannel, false);
 
-// Ramp parameters
-const unsigned long softStartDuration = 1500; // Duration of the soft start in milliseconds
-const unsigned long maintainSpeedDuration = 3000; // Duration to maintain speed before stopping
-const unsigned long softStopDuration = 1500; // Duration of the soft stop in milliseconds
-
-// Variables for ramping
+// Variables for user speed
 int targetSpeed = 0;
+
+// 450 Counts
 unsigned long startTime = 0;
-unsigned long lastLogTime = 0;
+bool tracking = false; 
+unsigned long startPulseCount = 0; // Initial pulse count when tracking starts
+
 
 void setup() {
-  motor.begin(90, 1);
+  motor.begin();
   Serial.begin(9600); 
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, LOW); // Ensure the LED is off initially
@@ -46,12 +46,10 @@ void setup() {
     digitalWrite(ledPin, HIGH); // Turn on the LED to indicate failure
   }
 
-  startTime = millis(); // Initialize the start time
 }
 
 void loop() {
   unsigned long currentTime = millis();
-  unsigned long elapsedTime = currentTime - startTime;
 
     // Check if serial data is available
   if (Serial.available() > 0) {
@@ -60,18 +58,16 @@ void loop() {
 
     // Try to parse the command as an integer
     targetSpeed = command.toInt();
-    motor.setSpeed(targetSpeed);
+    motor.setRPM(targetSpeed);
   }
 
   motor.loopPID(); 
 
-  Serial.print(motor.Setpoint); 
+  Serial.print(motor.getRPMSetpoint()); 
   Serial.print(" || "); 
-  Serial.print(motor.Input); 
+  Serial.print(motor.getCurrentDutyCycle()); 
   Serial.print(" || "); 
-  Serial.print(motor.Output); 
-  Serial.print(" || "); 
-  Serial.println(motor.getFrequency());
+  Serial.println(motor.getRPM());
 
   if (currentTime - lastLogTime >= 20) { // Log every 100 ms
     lastLogTime = currentTime; // Update the last log time
@@ -81,9 +77,9 @@ void loop() {
     if (logFile) {
       logFile.print(currentTime);
       logFile.print(", ");
-      logFile.print(targetSpeed);
+      logFile.print(motor.getRPMSetpoint());
       logFile.print(", ");
-      logFile.println(motor.getFrequency());
+      logFile.println(motor.getRPM());
       logFile.close();
       digitalWrite(ledPin, LOW);
     } else {
