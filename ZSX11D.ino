@@ -51,7 +51,7 @@ void setup() {
 void loop() {
   unsigned long currentTime = millis();
 
-    // Check if serial data is available
+  // Check if serial data is available
   if (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n'); // Read the serial input until newline
     command.trim(); // Remove any leading or trailing whitespace
