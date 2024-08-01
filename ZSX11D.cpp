@@ -17,6 +17,7 @@ ZSX11D::ZSX11D(uint8_t pinPWMOut, uint8_t pinBrake, uint8_t pinDirection, uint8_
   _TOVF_Counter = 0; 
   _last_pulse_time = 0;
   _pulse_period = INFINITY; 
+  _PPRCount = 0; 
 
   pinMode(_pinDirection, OUTPUT);
 
@@ -24,7 +25,7 @@ ZSX11D::ZSX11D(uint8_t pinPWMOut, uint8_t pinBrake, uint8_t pinDirection, uint8_
   ledcAttachPin(_pinPWMOut, _pwmChannel);
 }
 
-void ZSX11D::begin(int PPR, int minRPM) {
+void ZSX11D::begin() {
 
   if (_isReverse) {
     instances[0] = this;
@@ -47,36 +48,56 @@ void ZSX11D::begin(int PPR, int minRPM) {
   // PID ******************* 
   myPID.SetTunings(KP, KI, KD); 
   myPID.SetMode(myPID.Control::automatic);
-  myPID.SetOutputLimits(0, 255);
+  myPID.SetOutputLimits(MIN_PWM, MAX_PWM);
 }
 
-void ZSX11D::setPWM(int dutyCycle) {
-  ledcWrite(_pwmChannel, abs(dutyCycle)); 
+void ZSX11D::setPWM() { 
+  ledcWrite(_pwmChannel, int(Output)); 
 }
 
-void ZSX11D::setSpeed(int dutyCycle) {
-  _dutyCycle = dutyCycle;
-  Setpoint = _dutyCycle; 
+void ZSX11D::setRPM(float rpm) {
 
-  if (dutyCycle > 0){
+  if (rpm == 0){
+    Setpoint = 0; 
+    myPID.Reset();
+    _direction = STOP;  
+  } else {
+    Setpoint = constrain(Setpoint, MIN_RPM, MAX_RPM); 
+  }
+
+  if (rpm > 0){
     digitalWrite(_pinDirection, HIGH);
     _direction = FORWARD; // FORWARD
-  } else if (dutyCycle < 0){
+  } else if (rpm < 0){
     digitalWrite(_pinDirection, LOW);
     _direction = REVERSE; // REVERSE
-  } else if (dutyCycle == 0){
-    myPID.Reset(); 
   }
 }
 
-float ZSX11D::getFrequency() {
-  return 1.0 / (_pulse_period * 1e-6);
+float ZSX11D::getCurrentDutyCycle() {
+  return Output; 
+}
+
+int ZSX11D::getCurrentDirection() {
+  return _direction; 
+}
+
+float ZSX11D::getRPMSetpoint() {
+  return Setpoint; 
+}
+
+float ZSX11D::getRPM() {
+  return (1.0 / (_pulse_period * 1e-6)) * 60 / RISING_PPR * _direction;
+}
+
+int ZSX11D::getPulseCount() {
+  return _PPRCount; 
 }
 
 void ZSX11D::loopPID() {
-  Input = getFrequency(); 
+  Input = abs(getRPM()); 
   myPID.Compute(); 
-  setPWM(Output); 
+  setPWM(); 
 }
 
 // Left Timer Overflow Event
@@ -120,6 +141,7 @@ void IRAM_ATTR ZSX11D::onLeftEncoderRise() {
   }
   // Timeout Variable
   instances[0]->_last_pulse_time = micros(); 
+  instances[0]->_PPRCount++; 
 }
 
 // Encoder Rising Event
@@ -146,4 +168,5 @@ void IRAM_ATTR ZSX11D::onRightEncoderRise() {
   }
   // Timeout variable
   instances[1]->_last_pulse_time = micros(); 
+  instances[1]->_PPRCount++; 
 }
