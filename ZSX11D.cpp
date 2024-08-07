@@ -2,9 +2,8 @@
 
 ZSX11D* ZSX11D::instances[2] = {nullptr, nullptr};
 
-ZSX11D::ZSX11D(uint8_t pinPWMOut, uint8_t pinBrake, uint8_t pinDirection, uint8_t pinHallSensor, uint8_t pwmChannel, bool isReverse) : myPID(&Input, &Output, &Setpoint){
+ZSX11D::ZSX11D(uint8_t pinPWMOut, uint8_t pinDirection, uint8_t pinHallSensor, uint8_t pwmChannel, bool isReverse) : myPID(&Input, &Output, &Setpoint){
   _pinPWMOut = pinPWMOut;
-  _pinBrake = pinBrake;
   _pinDirection = pinDirection;
   _pinHallSensor = pinHallSensor;
   _pwmChannel = pwmChannel;
@@ -18,9 +17,7 @@ ZSX11D::ZSX11D(uint8_t pinPWMOut, uint8_t pinBrake, uint8_t pinDirection, uint8_
   _last_pulse_time = 0;
   _pulse_period = INFINITY; 
   _PPRCount = 0; 
-
   pinMode(_pinDirection, OUTPUT);
-
   ledcSetup(_pwmChannel, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcAttachPin(_pinPWMOut, _pwmChannel);
 }
@@ -29,7 +26,7 @@ void ZSX11D::begin() {
 
   if (_isReverse) {
     instances[0] = this;
-    attachInterrupt(digitalPinToInterrupt(_pinHallSensor), onLeftEncoderRise, RISING);
+    attachInterrupt(digitalPinToInterrupt(_pinHallSensor), onLeftEncoderRise, CHANGE);
     _timer = timerBegin(NORMAL_TIMER_NUMBER, TIMER_PRESCALAR, true); // Use timer 0, prescaler 80, count up
     timerAttachInterrupt(_timer, &onLeftTimerOverflow, true); // Attach the overflow interrupt
     timerAlarmWrite(_timer, MAX_TIMER_PERIOD_MICROSECONDS, true); // Set the max timer period to 1 second
@@ -37,7 +34,7 @@ void ZSX11D::begin() {
     timerStart(_timer);
   } else {
     instances[1] = this;
-    attachInterrupt(digitalPinToInterrupt(_pinHallSensor), onRightEncoderRise, RISING);
+    attachInterrupt(digitalPinToInterrupt(_pinHallSensor), onRightEncoderRise, CHANGE);
     _timer = timerBegin(REVERSED_TIMER_NUMBER, TIMER_PRESCALAR, true); // Use timer 0, prescaler 80, count up
     timerAttachInterrupt(_timer, &onRightTimerOverflow, true); // Attach the overflow interrupt
     timerAlarmWrite(_timer, MAX_TIMER_PERIOD_MICROSECONDS, true); // Set the max timer period to 1 second
@@ -49,6 +46,9 @@ void ZSX11D::begin() {
   myPID.SetTunings(KP, KI, KD); 
   myPID.SetMode(myPID.Control::automatic);
   myPID.SetOutputLimits(MIN_PWM, MAX_PWM);
+
+  setRPM(0); 
+  digitalWrite(_pinDirection, HIGH); // Prevent floating
 }
 
 void ZSX11D::setPWM() { 
@@ -66,10 +66,18 @@ void ZSX11D::setRPM(float rpm) {
   }
 
   if (rpm > 0){
-    digitalWrite(_pinDirection, HIGH);
+    if (_isReverse){
+      digitalWrite(_pinDirection, LOW); 
+    } else {
+      digitalWrite(_pinDirection, HIGH);
+    }
     _direction = FORWARD; // FORWARD
   } else if (rpm < 0){
-    digitalWrite(_pinDirection, LOW);
+    if (_isReverse){
+      digitalWrite(_pinDirection, HIGH);
+    } else {
+      digitalWrite(_pinDirection, LOW);
+    }
     _direction = REVERSE; // REVERSE
   }
 }
@@ -87,7 +95,7 @@ float ZSX11D::getRPMSetpoint() {
 }
 
 float ZSX11D::getRPM() {
-  return (1.0 / (_pulse_period * 1e-6)) * 60 / RISING_PPR * _direction;
+  return (1.0 / (_pulse_period * 1e-6)) * (60.0 / RISING_PPR) * _direction * 0.5;
 }
 
 int ZSX11D::getPulseCount() {
@@ -141,7 +149,7 @@ void IRAM_ATTR ZSX11D::onLeftEncoderRise() {
   }
   // Timeout Variable
   instances[0]->_last_pulse_time = micros(); 
-  instances[0]->_PPRCount++; 
+  // instances[0]->_PPRCount++; 
 }
 
 // Encoder Rising Event
@@ -168,5 +176,5 @@ void IRAM_ATTR ZSX11D::onRightEncoderRise() {
   }
   // Timeout variable
   instances[1]->_last_pulse_time = micros(); 
-  instances[1]->_PPRCount++; 
+  // instances[1]->_PPRCount++; 
 }
