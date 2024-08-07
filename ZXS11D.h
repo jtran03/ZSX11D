@@ -22,13 +22,17 @@
 #define TIMER_PRESCALAR 80
 #define MAX_TIMER_PERIOD_MICROSECONDS 200000 // 60/(RPMmin * PPR)
 
-#define KP 0.6
-#define KI 2.034
-#define KD 0.044
+// #define KP 1.20 // 
+// #define KI 5.43 //
+// #define KD 0.02 // 
+#define KP 2 // 2.4
+#define KI 7 // 7.5
+#define KD 0.01 //
+
 
 class ZSX11D {
 public:
-  ZSX11D(uint8_t pinPWMOut, uint8_t pinBrake, uint8_t pinDirection, uint8_t pinHallSensor, uint8_t pwmChannel, bool isReverse);
+  ZSX11D(uint8_t pinPWMOut, uint8_t pinDirection, uint8_t pinHallSensor, uint8_t pwmChannel, bool isReverse);
   void begin(); 
   void setPWM();
   void setRPM(float RPM); 
@@ -45,7 +49,6 @@ public:
 
 private:
   uint8_t _pinPWMOut;
-  uint8_t _pinBrake;
   uint8_t _pinDirection;
   uint8_t _pinHallSensor;
   uint8_t _pwmChannel;
